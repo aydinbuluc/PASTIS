@@ -1,0 +1,20 @@
+Cori GPU nodes
+to install ADEPT:
+you need the modified cmake and driver.cpp file
+module purge
+module load gcc cuda openmpi cmake esslurm
+mkdir build
+cmake -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx ..
+make
+
+you need to install CombBLAS again (due to openmpi)
+mkdir build-cori-gpu install-cori-gpu
+cd build-cori-gpu
+cmake .. -DCMAKE_INSTALL_PREFIX=../install-cori-gpu -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx
+make -j17
+make install
+
+to install PASTIS
+mkdir build && cd build
+cmake -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx ..
+make
