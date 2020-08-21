@@ -11,11 +11,12 @@
 #include "../include/DistributedPairwiseRunner.hpp"
 #include "CombBLAS/CombBLAS.h"
 #include "../include/cxxopts.hpp"
-#include "../include/pw/SeedExtendXdrop.hpp"
+// #include "../include/pw/SeedExtendXdrop.hpp"
 #include "seqan/score/score_matrix_data.h"
 #include "../include/pw/OverlapFinder.hpp"
-#include "../include/pw/FullAligner.hpp"
-#include "../include/pw/BandedAligner.hpp"
+// #include "../include/pw/FullAligner.hpp"
+// #include "../include/pw/BandedAligner.hpp"
+#include "../include/pw/BswGPUAligner.hpp"
 #include "../include/kmer/KmerOps.hpp"
 #include "../include/kmer/KmerIntersectSR.hpp"
 #include "../include/kmer/SubKmerIntersectSR.hpp"
@@ -71,6 +72,9 @@ bool xdrop_align = false;
 /*! Perform banded alignment */
 bool banded_align = false;
 int banded_half_width = 5;
+
+/*! Perform GPU-based banded Smith-Waterman alignment */
+bool gpubsw_align = false;
 
 /*! File path to output global sequence index to original global sequence
  * index mapping */
@@ -318,25 +322,32 @@ main
 		uint64_t local_alignments = 0;
 		if (xdrop_align)
 		{
-			pf = new SeedExtendXdrop (blosum62, blosum62_simple,
-									  klength, xdrop, seed_count);
-			dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
-						  ckthr, mosthr * klength, tu);
-			local_alignments = static_cast<SeedExtendXdrop*>(pf)->nalignments;
+			// pf = new SeedExtendXdrop (blosum62, blosum62_simple,
+			// 						  klength, xdrop, seed_count);
+			// dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
+			// 			  ckthr, mosthr * klength, tu);
+			// local_alignments = static_cast<SeedExtendXdrop*>(pf)->nalignments;
 		}
 		else if (full_align)
 		{
-			pf = new FullAligner(blosum62, blosum62_simple);
-			dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
-						  ckthr, mosthr * klength, tu);
-			local_alignments = static_cast<FullAligner*>(pf)->nalignments;
+			// pf = new FullAligner(blosum62, blosum62_simple);
+			// dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
+			// 			  ckthr, mosthr * klength, tu);
+			// local_alignments = static_cast<FullAligner*>(pf)->nalignments;
 		}
 		else if(banded_align)
 		{
-			pf = new BandedAligner (blosum62, banded_half_width);
+			// pf = new BandedAligner (blosum62, banded_half_width);
+			// dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
+			// 			  ckthr, mosthr * klength, tu);
+			// local_alignments = static_cast<BandedAligner*>(pf)->nalignments;
+		}
+		else if (gpubsw_align)
+		{
+			pf = new BswGPUAligner();
 			dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
 						  ckthr, mosthr * klength, tu);
-			local_alignments = static_cast<BandedAligner*>(pf)->nalignments;
+			local_alignments = static_cast<BswGPUAligner *>(pf)->nalignments;
 		}
 
 		tp->times["end_main:dpr->align()"] = std::chrono::system_clock::now();
@@ -404,6 +415,7 @@ int parse_args(int argc, char **argv) {
      cxxopts::value<int>())
     (CMD_OPTION_BANDED_ALIGN, CMD_OPTION_DESCRIPTION_BANDED_ALIGN,
      cxxopts::value<int>())
+	(CMD_OPTION_GPUBSW_ALIGN, CMD_OPTION_DESCRIPTION_GPUBSW_ALIGN)
     (CMD_OPTION_IDX_MAP, CMD_OPTION_DESCRIPTION_IDX_MAP,
      cxxopts::value<std::string>())
     (CMD_OPTION_ALPH, CMD_OPTION_DESCRIPTION_ALPH,
@@ -519,6 +531,10 @@ int parse_args(int argc, char **argv) {
     xdrop_align = true;
     xdrop = result[CMD_OPTION_XDROP_ALIGN].as<int>();
   }
+  
+  if (result.count(CMD_OPTION_GPUBSW_ALIGN)) {
+    gpubsw_align = true;
+  }
 
   if (result.count(CMD_OPTION_ALPH)) {
     std::string tmp = result[CMD_OPTION_ALPH].as<std::string>();
@@ -587,6 +603,7 @@ void pretty_print_config(std::string &append_to) {
     "Full align (--fa)",
     "Xdrop align (--xa)",
     "Banded align (--ba)",
+	"GPU-based Banded SW (--bsw)",
     "Index map (--idxmap)",
     "Alphabet (--alph)",
     "Use substitute kmers (--subs)",
@@ -612,6 +629,7 @@ void pretty_print_config(std::string &append_to) {
     bool_to_str(full_align),
     bool_to_str(xdrop_align) + (xdrop_align ? "| xdrop: " + std::to_string(xdrop) : ""),
     bool_to_str(banded_align) + (banded_align ? " | half band: " + std::to_string(banded_half_width) : ""),
+	bool_to_str(gpubsw_align),
     !idx_map_file.empty() ? idx_map_file : "None",
     std::to_string(alph_t),
     bool_to_str(add_substitue_kmers) + (add_substitue_kmers ? " | sub kmers: " + std::to_string(subk_count) : ""),

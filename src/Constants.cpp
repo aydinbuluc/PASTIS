@@ -43,6 +43,9 @@ const char *CMD_OPTION_DESCRIPTION_XDROP_ALIGN = "Flag to indicate seed-and-exte
 const char *CMD_OPTION_BANDED_ALIGN = "ba";
 const char *CMD_OPTION_DESCRIPTION_BANDED_ALIGN = "Flag to indicate banded alignment";
 
+const char *CMD_OPTION_GPUBSW_ALIGN = "bsw";
+const char *CMD_OPTION_DESCRIPTION_GPUBSW_ALIGN = "Flag to indicate GPU-based Banded Smith-Waterman";
+
 const char *CMD_OPTION_IDX_MAP = "idxmap";
 const char *CMD_OPTION_DESCRIPTION_IDX_MAP = "The file path to write the global sequence indices to original global sequence indices mapping. ";
 

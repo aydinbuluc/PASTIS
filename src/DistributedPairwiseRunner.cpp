@@ -205,6 +205,9 @@ void DistributedPairwiseRunner::run(PairwiseFunction *pf, const char* file, std:
 }
 
 
+// Changes for ADEPT:
+//   - eliminate seq pairs length both > 1024
+//   - use ungapped Seqan strings
 void
 DistributedPairwiseRunner::run_batch
 (
@@ -277,15 +280,22 @@ DistributedPairwiseRunner::run_batch
 				uint64_t			g_col_idx = l_col_idx + col_offset;
 				uint64_t			g_row_idx = l_row_idx + row_offset;
 				pastis::CommonKmers cks		  = mattuples.numvalue(i);
+
+				// Elimination for bsw-gpu
+				int len_seqh = seqan::length(*(dfd->col_seq(l_col_idx)));
+				int len_seqv = seqan::length(*(dfd->row_seq(l_row_idx)));
+				
 				if ((cks.count > ckthr) &&
 					(cks.score > mosthr) &&
 					(l_col_idx >= l_row_idx) &&
-					(l_col_idx != l_row_idx || g_col_idx > g_row_idx))
+					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
+					(len_seqh < 1024 || len_seqv < 1024))
 					++algn_cnt;
 
 				// stats purposes
 				if ((l_col_idx >= l_row_idx) &&
-					(l_col_idx != l_row_idx || g_col_idx > g_row_idx))
+					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
+					(len_seqh < 1024 || len_seqv < 1024))
 				{
 					if (cks.count <= ckthr)
 						++nelims_ckthr_cur;
@@ -319,8 +329,10 @@ DistributedPairwiseRunner::run_batch
 		}
 		
 		// allocate StringSet
-		seqan::StringSet<seqan::Gaps<seqan::Peptide>> seqsh;
-		seqan::StringSet<seqan::Gaps<seqan::Peptide>> seqsv;
+		// seqan::StringSet<seqan::Gaps<seqan::Peptide>> seqsh;
+		// seqan::StringSet<seqan::Gaps<seqan::Peptide>> seqsv;
+		seqan::StringSet<seqan::Peptide> seqsh;
+		seqan::StringSet<seqan::Peptide> seqsv;
 		resize(seqsh, algn_cnts[numThreads], seqan::Exact{});
 		resize(seqsv, algn_cnts[numThreads], seqan::Exact{});
 		uint64_t *lids = new uint64_t[algn_cnts[numThreads]];
@@ -343,15 +355,23 @@ DistributedPairwiseRunner::run_batch
 				uint64_t			g_col_idx = l_col_idx + col_offset;
 				uint64_t			g_row_idx = l_row_idx + row_offset;
 				pastis::CommonKmers cks		  = mattuples.numvalue(i);
+
+				// Elimination for bsw-gpu
+				int len_seqh = seqan::length(*(dfd->col_seq(l_col_idx)));
+				int len_seqv = seqan::length(*(dfd->row_seq(l_row_idx)));
+				
 				if ((cks.count > ckthr) &&
 					(cks.score > mosthr) &&
 					(l_col_idx >= l_row_idx) &&
-					(l_col_idx != l_row_idx || g_col_idx > g_row_idx))
+					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
+					(len_seqh < 1024 || len_seqv < 1024))
 				{
-					seqsh[algn_idx] =
-						seqan::Gaps<seqan::Peptide>(*(dfd->col_seq(l_col_idx)));
-					seqsv[algn_idx] =
-						seqan::Gaps<seqan::Peptide>(*(dfd->row_seq(l_row_idx)));
+					// seqsh[algn_idx] =
+					// 	seqan::Gaps<seqan::Peptide>(*(dfd->col_seq(l_col_idx)));
+					// seqsv[algn_idx] =
+					// 	seqan::Gaps<seqan::Peptide>(*(dfd->row_seq(l_row_idx)));
+					seqsh[algn_idx] = *(dfd->col_seq(l_col_idx));
+					seqsv[algn_idx] = *(dfd->row_seq(l_row_idx));
 					lids[algn_idx] = i;
 					++algn_idx;
 				}
@@ -368,8 +388,8 @@ DistributedPairwiseRunner::run_batch
 		// 	pf->apply_batch_sc(seqsh, seqsv, lids, col_offset, row_offset,
 		// 					   mattuples, af_stream, lfs);
 		// else
-		pf->apply_batch(seqsh, seqsv, lids, col_offset, row_offset,
-						mattuples, af_stream, lfs);
+		pf->apply_batch_sc(seqsh, seqsv, lids, col_offset, row_offset,
+						   mattuples, af_stream, lfs);
 		
 		
 		delete [] lids;

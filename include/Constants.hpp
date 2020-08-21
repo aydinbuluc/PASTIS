@@ -49,6 +49,9 @@ extern const char *CMD_OPTION_DESCRIPTION_XDROP_ALIGN;
 extern const char *CMD_OPTION_BANDED_ALIGN;
 extern const char *CMD_OPTION_DESCRIPTION_BANDED_ALIGN;
 
+extern const char *CMD_OPTION_GPUBSW_ALIGN;
+extern const char *CMD_OPTION_DESCRIPTION_GPUBSW_ALIGN;
+
 extern const char *CMD_OPTION_IDX_MAP;
 extern const char *CMD_OPTION_DESCRIPTION_IDX_MAP;
 

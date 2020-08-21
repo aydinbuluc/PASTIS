@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.11)
-project(pastis)
+project(pastis LANGUAGES C CXX CUDA)
 set(CMAKE_CXX_STANDARD 14)
 
 include_directories(
-	${PROJECT_SOURCE_DIR}/seqan/include 
-	${PROJECT_SOURCE_DIR}/CombBLAS/install/include)
+	${PROJECT_SOURCE_DIR}/CombBLAS/install/include
+	${PROJECT_SOURCE_DIR}/seqan/include
+	${PROJECT_SOURCE_DIR}/GPU-BSW)
 	# possibly add path to boost library (not necessary on Cori, just type 'module load boost')
-link_directories(${PROJECT_SOURCE_DIR}/CombBLAS/install/lib)
+link_directories(
+    ${PROJECT_SOURCE_DIR}/CombBLAS/install/lib
+	${PROJECT_SOURCE_DIR}/GPU-BSW/build)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -16,6 +19,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DSEQAN_ENABLE_DEBUG=0 -mavx2")
 
 find_package(MPI REQUIRED)
 find_package(OpenMP REQUIRED)
+#find_package(cuda REQUIRED)
 
 add_executable(pastis
         src/Alphabet.cpp
@@ -40,17 +44,11 @@ add_executable(pastis
         include/Utils.hpp
         include/pw/PairwiseFunction.hpp
         src/pw/PairwiseFunction.cpp
-        include/pw/SeedExtendXdrop.hpp
-        src/pw/SeedExtendXdrop.cpp
         include/pw/OverlapFinder.hpp
         src/pw/OverlapFinder.cpp
         include/AlignmentInfo.hpp
         include/ScoreMat.hpp
         src/ScoreMat.cpp
-        include/pw/BandedAligner.hpp
-        include/pw/FullAligner.hpp
-        src/pw/BandedAligner.cpp
-        src/pw/FullAligner.cpp
         include/kmer/CommonKmers.hpp
         include/kmer/KmerIntersectSR.hpp
         include/kmer/MatrixEntry.hpp
@@ -60,6 +58,8 @@ add_executable(pastis
         include/NearestKmers2.hpp
         src/NearestKmers2.cpp
         include/kmer/SubKmerIntersectSR.hpp
+		include/pw/BswGPUAligner.hpp
+		src/pw/BswGPUAligner.cpp
         )
 
 
@@ -68,6 +68,18 @@ if (MPI_FOUND)
     include_directories(${MPI_INCLUDE_PATH})
     target_link_libraries(pastis PUBLIC ${MPI_LIBRARIES})
 endif()
+
+find_library(CUDART_LIBRARY cudart ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+if (CUDA_FOUND)
+	message(STATUS "Cuda found...")
+endif()
+message(STATUS "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+message(STATUS "${CUDART_LIBRARY}")
+target_include_directories(pastis PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_link_libraries(pastis PUBLIC ${CUDART_LIBRARY})
+
+# ADEPT
+target_link_libraries(pastis PUBLIC bsw_gpu)
 
 if(OPENMP_FOUND OR OpenMP_CXX_FOUND)
     # Set THREADED if OpenMP is found

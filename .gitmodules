@@ -6,3 +6,6 @@
 	path = seqan
 	url = https://github.com/seqan/seqan
 	branch = develop
+[submodule "GPU-BSW"]
+	path = GPU-BSW
+	url = https://github.com/mgawan/GPU-BSW.git
