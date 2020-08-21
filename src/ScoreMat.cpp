@@ -22,7 +22,7 @@ pastis::Blosum62::Blosum62() : ScoreMatrix(25) {
 
     for (int j = 0; j < alph_size; ++j){
       char cj = alph[j];
-      char s = data[data_offset + j];
+      unsigned char s = data[data_offset + j];
 
       _score[score_offset + cj] = s;
 

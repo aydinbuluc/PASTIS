@@ -104,7 +104,7 @@ namespace pastis{
      * access. It'll map ASCII code to score, so it'll be sparse as protein
      * alphabet only contains codes 42, [65-90]
      */
-    char const data[25*25] = {
+    signed char const data[25*25] = {
          4,-1,-2,-2, 0,-1,-1, 0,-2,-1,-1,-1,-1,-2,-1, 1, 0,-3,-2, 0,-2,-1, 0,-4,-1,
         -1, 5, 0,-2,-3, 1, 0,-2, 0,-3,-2, 2,-1,-3,-2,-1,-1,-3,-2,-3,-1, 0,-1,-4,-2,
         -2, 0, 6, 1,-3, 0, 0, 0, 1,-3,-3, 0,-2,-3,-2, 1, 0,-4,-2,-3, 3, 0,-1,-4,-3,
