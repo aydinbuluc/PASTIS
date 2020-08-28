@@ -44,8 +44,9 @@ public:
   				  uint64_t *lids,
   				  uint64_t col_offset,
   				  uint64_t row_offset,
-  				  PSpMat<pastis::CommonKmers>::Tuples &mattuples,
-  				  std::ofstream &afs, std::ofstream &lfs) = 0;
+  				  PSpMat<pastis::CommonKmers>::ref_tuples *mattuples,
+  				  std::ofstream &afs,
+				  std::ofstream &lfs) = 0;
 
 
   void add_time(std::string type, double duration);

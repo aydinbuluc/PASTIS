@@ -95,7 +95,8 @@ DistributedFastaData::DistributedFastaData(
   MPI_Exscan(&orig_l_seq_count, &orig_g_seq_offset, 1,
           MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
 
-  write_idx_map(idx_map_file);
+  // @OGUZ-TODO make this optional disabled for now
+  // write_idx_map(idx_map_file);
 
 #ifndef NDEBUG
   std::printf("Rank: %d orig_l_seq_count: %lld\n",

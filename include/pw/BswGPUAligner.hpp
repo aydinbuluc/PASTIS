@@ -37,9 +37,12 @@ public:
 	void
 	apply_batch_sc (seqan::StringSet<seqan::Peptide> &seqsh,
 					seqan::StringSet<seqan::Peptide> &seqsv,
-					uint64_t *lids, uint64_t col_offset, uint64_t row_offset,
-					PSpMat<pastis::CommonKmers>::Tuples &mattuples,
-					std::ofstream &afs, std::ofstream &lfs)
+					uint64_t *lids,
+					uint64_t col_offset,
+					uint64_t row_offset,
+					PSpMat<pastis::CommonKmers>::ref_tuples *mattuples,
+					std::ofstream &afs,
+					std::ofstream &lfs)
 		override;
 
 

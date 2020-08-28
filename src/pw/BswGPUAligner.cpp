@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -63,7 +65,7 @@ BswGPUAligner::apply_batch_sc
 	uint64_t *lids,
 	uint64_t col_offset,
 	uint64_t row_offset,
-	PSpMat<pastis::CommonKmers>::Tuples &mattuples,
+	PSpMat<pastis::CommonKmers>::ref_tuples *mattuples,
 	std::ofstream &afs,
 	std::ofstream &lfs
 )
@@ -142,8 +144,8 @@ BswGPUAligner::apply_batch_sc
 
 	// #pragma omp parallel
 	// {
-		int maxnthds = omp_get_max_threads();
-		std::cout << "before ADEPT " << maxnthds << std::endl;
+	// int maxnthds = omp_get_max_threads();
+	// std::cout << "before ADEPT " << maxnthds << std::endl;
 	// }
 
 	gpu_bsw_driver::alignment_results res;
@@ -166,30 +168,41 @@ BswGPUAligner::apply_batch_sc
 			// int len_seqv = seqan::length(seqsv[i]);
 			int len_seqh = seqs_r[i].size();
 			int len_seqv = seqs_q[i].size();
-
-			ss << (col_offset + mattuples.colindex(lids[i])) << ","
-			   << (row_offset + mattuples.rowindex(lids[i]))  << ","
-			   << res.top_scores[i] << ","
-			   << len_seqh << ","
-			   << len_seqv << ","
-			   << ((double)res.top_scores[i]/(double)len_seqh) << ","
-			   << ((double)res.top_scores[i]/(double)len_seqv) << ","
-			   << (double)(res.ref_end[i]-res.ref_begin[i]) /
-				max(len_seqh, len_seqv) << ","
-			   << (double)(res.query_end[i]-res.query_begin[i]) /
-				min(len_seqh, len_seqv) << ","
-			   << res.ref_begin[i] << ","
-			   << res.ref_end[i] << ","
-			   << res.query_begin[i] << ","
-			   << res.query_end[i]
-			   << "\n";
+			double cov_longer = (double)(res.ref_end[i]-res.ref_begin[i]) /
+				max(len_seqh, len_seqv);
+			double cov_shorter = (double)(res.query_end[i]-res.query_begin[i]) /
+				min(len_seqh, len_seqv);
+			
+			if (max(cov_longer, cov_shorter) >= 0.70) // coverage constraint
+			{
+				pastis::CommonKmers *cks = std::get<2>(mattuples[lids[i]]);
+				cks->nrm_score = (float)(res.top_scores[i]) /
+					(float)min(len_seqh, len_seqv);
+				cks->score = 1;	// keep this
+				// ss << (col_offset + mattuples.colindex(lids[i])) << ","
+				//    << (row_offset + mattuples.rowindex(lids[i]))  << ","
+				//    << res.top_scores[i] << ","
+				//    << len_seqh << ","
+				//    << len_seqv << ","
+				//    << ((double)res.top_scores[i]/(double)len_seqh) << ","
+				//    << ((double)res.top_scores[i]/(double)len_seqv) << ","
+				//    << (double)(res.ref_end[i]-res.ref_begin[i]) /
+				// 	max(len_seqh, len_seqv) << ","
+				//    << (double)(res.query_end[i]-res.query_begin[i]) /
+				// 	min(len_seqh, len_seqv) << ","
+				//    << res.ref_begin[i] << ","
+				//    << res.ref_end[i] << ","
+				//    << res.query_begin[i] << ","
+				//    << res.query_end[i]
+				//    << "\n";
+			}
 		}
 
-		#pragma omp critical
-		{
-			afs << ss.str();
-			afs.flush();
-		}
+		// #pragma omp critical
+		// {
+		// 	afs << ss.str();
+		// 	afs.flush();
+		// }
 	}
 
 	return;

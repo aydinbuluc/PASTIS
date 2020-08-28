@@ -205,6 +205,7 @@ void DistributedPairwiseRunner::run(PairwiseFunction *pf, const char* file, std:
 }
 
 
+
 // Changes for ADEPT:
 //   - eliminate seq pairs length both > 1024
 //   - use ungapped Seqan strings
@@ -222,15 +223,37 @@ DistributedPairwiseRunner::run_batch
 )
 {
 	std::ofstream af_stream;
-	af_stream.open(file);
+	// af_stream.open(file);
 
 	uint64_t	local_nnz_count = spSeq->getnnz();
-	int			batch_size		= 1e8;
-	int			batch_cnt		= (local_nnz_count / batch_size) + 1;
-	int			batch_idx		= 0;
+	uint64_t	batch_size		= 1e9;
+	uint64_t	batch_cnt		= (local_nnz_count / batch_size) + 1;
+	uint64_t	batch_idx		= 0;
 	uint64_t	nalignments		= 0;
-	PSpMat<pastis::CommonKmers>::Tuples mattuples(*spSeq);
-		
+
+	// PSpMat<pastis::CommonKmers>::Tuples mattuples(*spSeq);
+
+	// @TODO threaded
+	PSpMat<pastis::CommonKmers>::ref_tuples *mattuples =
+		new PSpMat<pastis::CommonKmers>::ref_tuples[local_nnz_count];
+	// std::tuple<uint64_t, uint64_t, pastis::CommonKmers *> *mattuples =
+	// 	new std::tuple<uint64_t, uint64_t,
+	// 				   pastis::CommonKmers *>[local_nnz_count];
+	uint64_t k = 0;
+	auto dcsc = spSeq->GetDCSC();
+	for (uint64_t i = 0; i < dcsc->nzc; ++i)
+	{
+		for (uint64_t j = dcsc->cp[i]; j < dcsc->cp[i+1]; ++j)
+		{
+			std::get<0>(mattuples[k]) = dcsc->ir[j];
+			std::get<1>(mattuples[k]) = dcsc->jc[i];
+			std::get<2>(mattuples[k]) = &(dcsc->numx[j]);
+			++k;
+		}
+	}
+
+	assert (k == local_nnz_count);
+	
 	lfs << "Local nnz count: " << local_nnz_count << std::endl;
 
 	int numThreads = 1;
@@ -256,6 +279,11 @@ DistributedPairwiseRunner::run_batch
 		uint64_t end = ((batch_idx + 1) * batch_size > local_nnz_count) ?
 			local_nnz_count : ((batch_idx + 1) * batch_size);
 
+		tu.print_str("batch idx " + std::to_string(batch_idx) + "/" +
+					 std::to_string(batch_cnt) + " [" +
+					 std::to_string(beg) + ", " +
+					 std::to_string(end) + ")\n");
+
 		memset(algn_cnts, 0, sizeof(*algn_cnts) * (numThreads + 1));
 
 		uint64_t nelims_ckthr_cur = 0, nelims_mosthr_cur = 0,
@@ -272,21 +300,27 @@ DistributedPairwiseRunner::run_batch
 
 			uint64_t algn_cnt = 0;
 
-			#pragma omp for schedule(static, 1000)
+			#pragma omp for schedule(static, 10000)
 			for (uint64_t i = beg; i < end; ++i)
 			{
-				auto				l_row_idx = mattuples.rowindex(i);
-				auto				l_col_idx = mattuples.colindex(i);
-				uint64_t			g_col_idx = l_col_idx + col_offset;
-				uint64_t			g_row_idx = l_row_idx + row_offset;
-				pastis::CommonKmers cks		  = mattuples.numvalue(i);
+				// auto				l_row_idx = mattuples.rowindex(i);
+				// auto				l_col_idx = mattuples.colindex(i);
+				// uint64_t			g_col_idx = l_col_idx + col_offset;
+				// uint64_t			g_row_idx = l_row_idx + row_offset;
+				// pastis::CommonKmers cks		  = mattuples.numvalue(i);
+
+				auto				 l_row_idx = std::get<0>(mattuples[i]);
+				auto				 l_col_idx = std::get<1>(mattuples[i]);
+				uint64_t			 g_col_idx = l_col_idx + col_offset;
+				uint64_t			 g_row_idx = l_row_idx + row_offset;
+				pastis::CommonKmers *cks	   = std::get<2>(mattuples[i]);
 
 				// Elimination for bsw-gpu
 				int len_seqh = seqan::length(*(dfd->col_seq(l_col_idx)));
 				int len_seqv = seqan::length(*(dfd->row_seq(l_row_idx)));
 				
-				if ((cks.count > ckthr) &&
-					(cks.score > mosthr) &&
+				if ((cks->count > ckthr) &&
+					(cks->score > mosthr) &&
 					(l_col_idx >= l_row_idx) &&
 					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
 					(len_seqh < 1024 || len_seqv < 1024))
@@ -297,11 +331,11 @@ DistributedPairwiseRunner::run_batch
 					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
 					(len_seqh < 1024 || len_seqv < 1024))
 				{
-					if (cks.count <= ckthr)
+					if (cks->count <= ckthr)
 						++nelims_ckthr_cur;
-					if (cks.score <= mosthr)
+					if (cks->score <= mosthr)
 						++nelims_mosthr_cur;
-					if (cks.count <= ckthr && cks.score <= mosthr)
+					if (cks->count <= ckthr && cks->score <= mosthr)
 						++nelims_both_cur;
 				}
 			}
@@ -347,21 +381,27 @@ DistributedPairwiseRunner::run_batch
 
 			uint64_t algn_idx = algn_cnts[tid];
 
-			#pragma omp for schedule(static, 1000)
+			#pragma omp for schedule(static, 10000)
 			for (uint64_t i = beg; i < end; ++i)
 			{
-				auto				l_row_idx = mattuples.rowindex(i);
-				auto				l_col_idx = mattuples.colindex(i);
-				uint64_t			g_col_idx = l_col_idx + col_offset;
-				uint64_t			g_row_idx = l_row_idx + row_offset;
-				pastis::CommonKmers cks		  = mattuples.numvalue(i);
+				// auto				l_row_idx = mattuples.rowindex(i);
+				// auto				l_col_idx = mattuples.colindex(i);
+				// uint64_t			g_col_idx = l_col_idx + col_offset;
+				// uint64_t			g_row_idx = l_row_idx + row_offset;
+				// pastis::CommonKmers cks		  = mattuples.numvalue(i);
+
+				auto				 l_row_idx = std::get<0>(mattuples[i]);
+				auto				 l_col_idx = std::get<1>(mattuples[i]);
+				uint64_t			 g_col_idx = l_col_idx + col_offset;
+				uint64_t			 g_row_idx = l_row_idx + row_offset;
+				pastis::CommonKmers *cks	   = std::get<2>(mattuples[i]);	
 
 				// Elimination for bsw-gpu
 				int len_seqh = seqan::length(*(dfd->col_seq(l_col_idx)));
 				int len_seqv = seqan::length(*(dfd->row_seq(l_row_idx)));
 				
-				if ((cks.count > ckthr) &&
-					(cks.score > mosthr) &&
+				if ((cks->count > ckthr) &&
+					(cks->score > mosthr) &&
 					(l_col_idx >= l_row_idx) &&
 					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
 					(len_seqh < 1024 || len_seqv < 1024))
@@ -375,13 +415,15 @@ DistributedPairwiseRunner::run_batch
 					lids[algn_idx] = i;
 					++algn_idx;
 				}
+
+				cks->score = 0; // will use it for pruning purposes
 			}
 		}
 		
 
 		// call aligner
 		lfs << "calling aligner for batch idx " << batch_idx
-			<< " cur #algnments " << algn_cnts[numThreads]
+			<< " cur #alignments " << algn_cnts[numThreads]
 			<< " overall " << nalignments
 			<< std::endl;
 		// if (score_only)
@@ -397,8 +439,8 @@ DistributedPairwiseRunner::run_batch
 	}
 
 
-	af_stream.flush();
-  	af_stream.close();
+	// af_stream.flush();
+  	// af_stream.close();
 
 	pf->nalignments = nalignments;
 	pf->print_avg_times(parops, lfs);
@@ -431,8 +473,254 @@ DistributedPairwiseRunner::run_batch
 				 std::to_string(nelims_ckthr_tot+nelims_mosthr_tot-
 								nelims_both_tot) + "\n");
 
-	delete [] algn_cnts;
+	// prune pairs that do not meet coverage criteria
+	std::string outfile = "pruned-C.mtx";
+	auto elim_cov = [] (pastis::CommonKmers &ck)
+		{return ck.score == 0;};
+	gmat->Prune(elim_cov);
+	gmat->ParallelWriteMM(outfile, false, pastis::CkOutputHandler());
 
+	delete [] algn_cnts;
+	delete [] mattuples;
 
 	return;
 }
+
+
+
+// Changes for ADEPT:
+//   - eliminate seq pairs length both > 1024
+//   - use ungapped Seqan strings
+// void
+// DistributedPairwiseRunner::run_batch
+// (
+//     PairwiseFunction	*pf,
+// 	const char*			 file,
+// 	std::ofstream&		 lfs,
+// 	int					 log_freq,
+// 	int					 ckthr,
+// 	float				 mosthr,
+// 	TraceUtils 			 tu,
+// 	bool				 score_only
+// )
+// {
+// 	std::ofstream af_stream;
+// 	af_stream.open(file);
+
+// 	uint64_t	local_nnz_count = spSeq->getnnz();
+// 	uint64_t	batch_size		= 1e9;
+// 	uint64_t	batch_cnt		= (local_nnz_count / batch_size) + 1;
+// 	uint64_t	batch_idx		= 0;
+// 	uint64_t	nalignments		= 0;
+// 	PSpMat<pastis::CommonKmers>::Tuples mattuples(*spSeq);
+		
+// 	lfs << "Local nnz count: " << local_nnz_count << std::endl;
+
+// 	int numThreads = 1;
+// 	#ifdef THREADED
+// 	#pragma omp parallel
+//     {
+//       	numThreads = omp_get_num_threads();
+//     }
+// 	#endif
+
+// 	std::vector<std::stringstream> ss(numThreads);
+// 	if(parops->world_proc_rank == 0)
+// 		af_stream << "g_col_idx,g_row_idx,pid,col_seq_len,row_seq_len,"
+// 			"col_seq_align_len,row_seq_align_len, num_gap_opens,"
+// 			"col_seq_len_coverage,row_seq_len_coverage,common_count"
+// 				  << std::endl;
+
+// 	uint64_t *algn_cnts = new uint64_t[numThreads + 1];
+// 	uint64_t nelims_ckthr = 0, nelims_mosthr = 0, nelims_both = 0;
+// 	while (batch_idx < batch_cnt)
+// 	{
+// 		uint64_t beg = batch_idx * batch_size;
+// 		uint64_t end = ((batch_idx + 1) * batch_size > local_nnz_count) ?
+// 			local_nnz_count : ((batch_idx + 1) * batch_size);
+
+// 		memset(algn_cnts, 0, sizeof(*algn_cnts) * (numThreads + 1));
+
+// 		uint64_t nelims_ckthr_cur = 0, nelims_mosthr_cur = 0,
+// 			nelims_both_cur = 0;
+		
+// 		// count number of alignments in this batch
+// 		#pragma omp parallel reduction(+:nelims_ckthr_cur,\
+// 									   nelims_mosthr_cur,nelims_both_cur)
+// 		{
+// 			int tid = 0;
+// 			#ifdef THREADED
+// 			tid = omp_get_thread_num();
+// 			#endif
+
+// 			uint64_t algn_cnt = 0;
+
+// 			#pragma omp for schedule(static, 10000)
+// 			for (uint64_t i = beg; i < end; ++i)
+// 			{
+// 				auto				l_row_idx = mattuples.rowindex(i);
+// 				auto				l_col_idx = mattuples.colindex(i);
+// 				uint64_t			g_col_idx = l_col_idx + col_offset;
+// 				uint64_t			g_row_idx = l_row_idx + row_offset;
+// 				pastis::CommonKmers cks		  = mattuples.numvalue(i);
+
+// 				// Elimination for bsw-gpu
+// 				int len_seqh = seqan::length(*(dfd->col_seq(l_col_idx)));
+// 				int len_seqv = seqan::length(*(dfd->row_seq(l_row_idx)));
+				
+// 				if ((cks.count > ckthr) &&
+// 					(cks.score > mosthr) &&
+// 					(l_col_idx >= l_row_idx) &&
+// 					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
+// 					(len_seqh < 1024 || len_seqv < 1024))
+// 					++algn_cnt;
+
+// 				// stats purposes
+// 				if ((l_col_idx >= l_row_idx) &&
+// 					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
+// 					(len_seqh < 1024 || len_seqv < 1024))
+// 				{
+// 					if (cks.count <= ckthr)
+// 						++nelims_ckthr_cur;
+// 					if (cks.score <= mosthr)
+// 						++nelims_mosthr_cur;
+// 					if (cks.count <= ckthr && cks.score <= mosthr)
+// 						++nelims_both_cur;
+// 				}
+// 			}
+
+// 			algn_cnts[tid + 1] = algn_cnt;
+// 		}
+
+// 		nelims_ckthr  += nelims_ckthr_cur;
+// 		nelims_mosthr += nelims_mosthr_cur;
+// 		nelims_both	  += nelims_both_cur;		
+
+// 		// for (int i = 1; i < numThreads + 1; ++i)
+// 		// 	lfs << "thread " << (i - 1) << ": " << algn_cnts[i] << " - ";
+// 		// lfs << "\n" << "cur tot " << algn_cnts[numThreads] << " cum tot "
+// 		// 	<< nalignments << std::endl;
+		
+// 		for (int i = 1; i < numThreads + 1; ++i)
+// 			algn_cnts[i] += algn_cnts[i - 1];
+// 		nalignments += algn_cnts[numThreads];
+
+// 		if (algn_cnts[numThreads] == 0)
+// 		{
+// 			++batch_idx;
+// 			continue;
+// 		}
+		
+// 		// allocate StringSet
+// 		// seqan::StringSet<seqan::Gaps<seqan::Peptide>> seqsh;
+// 		// seqan::StringSet<seqan::Gaps<seqan::Peptide>> seqsv;
+// 		seqan::StringSet<seqan::Peptide> seqsh;
+// 		seqan::StringSet<seqan::Peptide> seqsv;
+// 		resize(seqsh, algn_cnts[numThreads], seqan::Exact{});
+// 		resize(seqsv, algn_cnts[numThreads], seqan::Exact{});
+// 		uint64_t *lids = new uint64_t[algn_cnts[numThreads]];
+		
+// 		// fill StringSet
+// 		#pragma omp parallel
+// 		{
+// 			int tid = 0;
+// 			#ifdef THREADED
+// 			tid = omp_get_thread_num();
+// 			#endif
+
+// 			uint64_t algn_idx = algn_cnts[tid];
+
+// 			#pragma omp for schedule(static, 10000)
+// 			for (uint64_t i = beg; i < end; ++i)
+// 			{
+// 				auto				l_row_idx = mattuples.rowindex(i);
+// 				auto				l_col_idx = mattuples.colindex(i);
+// 				uint64_t			g_col_idx = l_col_idx + col_offset;
+// 				uint64_t			g_row_idx = l_row_idx + row_offset;
+// 				pastis::CommonKmers cks		  = mattuples.numvalue(i);
+
+// 				// Elimination for bsw-gpu
+// 				int len_seqh = seqan::length(*(dfd->col_seq(l_col_idx)));
+// 				int len_seqv = seqan::length(*(dfd->row_seq(l_row_idx)));
+				
+// 				if ((cks.count > ckthr) &&
+// 					(cks.score > mosthr) &&
+// 					(l_col_idx >= l_row_idx) &&
+// 					(l_col_idx != l_row_idx || g_col_idx > g_row_idx) &&
+// 					(len_seqh < 1024 || len_seqv < 1024))
+// 				{
+// 					// seqsh[algn_idx] =
+// 					// 	seqan::Gaps<seqan::Peptide>(*(dfd->col_seq(l_col_idx)));
+// 					// seqsv[algn_idx] =
+// 					// 	seqan::Gaps<seqan::Peptide>(*(dfd->row_seq(l_row_idx)));
+// 					seqsh[algn_idx] = *(dfd->col_seq(l_col_idx));
+// 					seqsv[algn_idx] = *(dfd->row_seq(l_row_idx));
+// 					lids[algn_idx] = i;
+// 					++algn_idx;
+// 				}
+// 			}
+// 		}
+		
+
+// 		// call aligner
+// 		lfs << "calling aligner for batch idx " << batch_idx
+// 			<< " cur #algnments " << algn_cnts[numThreads]
+// 			<< " overall " << nalignments
+// 			<< std::endl;
+// 		// if (score_only)
+// 		// 	pf->apply_batch_sc(seqsh, seqsv, lids, col_offset, row_offset,
+// 		// 					   mattuples, af_stream, lfs);
+// 		// else
+// 		pf->apply_batch_sc(seqsh, seqsv, lids, col_offset, row_offset,
+// 						   mattuples, af_stream, lfs);
+		
+		
+// 		delete [] lids;
+// 		++batch_idx;
+// 	}
+
+
+// 	af_stream.flush();
+//   	af_stream.close();
+
+// 	pf->nalignments = nalignments;
+// 	pf->print_avg_times(parops, lfs);
+
+// 	lfs << "#alignments run " << nalignments << std::endl;
+
+// 	// Stats
+// 	uint64_t nelims_ckthr_tot = 0, nelims_mosthr_tot = 0, nelims_both_tot = 0,
+// 		nalignments_tot = 0;
+// 	MPI_Reduce(&nelims_ckthr, &nelims_ckthr_tot, 1, MPI_UINT64_T,
+// 			   MPI_SUM, 0, MPI_COMM_WORLD);
+// 	MPI_Reduce(&nelims_mosthr, &nelims_mosthr_tot, 1, MPI_UINT64_T,
+// 			   MPI_SUM, 0, MPI_COMM_WORLD);
+// 	MPI_Reduce(&nelims_both, &nelims_both_tot, 1, MPI_UINT64_T,
+// 			   MPI_SUM, 0, MPI_COMM_WORLD);
+// 	MPI_Reduce(&nalignments, &nalignments_tot, 1, MPI_UINT64_T,
+// 			   MPI_SUM, 0, MPI_COMM_WORLD);
+// 	tu.print_str("total nnzs in the output matrix " +
+// 				 std::to_string(gmat->getnnz()) +
+// 				 "\ntotal nnzs in strictly lower (or upper) mat " +
+// 				 std::to_string((gmat->getnnz()-gmat->getncol())/2) + 
+// 				 "\n  total alignments run " + std::to_string(nalignments_tot) +
+// 				 "\n  eliminated due to common k-mer threshold " +
+// 				 std::to_string(nelims_ckthr_tot) +
+// 				 "\n  eliminated due to max overlap score threshold " +
+// 				 std::to_string(nelims_mosthr_tot) +
+// 				 "\n  eliminated due to both (intersection) " +
+// 				 std::to_string(nelims_both_tot) +
+// 				 "\n  eliminated overall with both (union) " +
+// 				 std::to_string(nelims_ckthr_tot+nelims_mosthr_tot-
+// 								nelims_both_tot) + "\n");
+
+// 	std::string outfile = "pruned-C.mtx";
+	
+// 	gmat->ParallelWriteMM(outfile, false, pastis::CkOutputHandler());
+	
+
+// 	delete [] algn_cnts;
+
+
+// 	return;
+// }
