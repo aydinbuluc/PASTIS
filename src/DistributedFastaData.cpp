@@ -582,7 +582,7 @@ DistributedFastaData::wait()
 
       }
 #endif
-	  			
+	  
       		FastaData *recv_fd =
 				new FastaData(recv_nbrs_buffs[recv_nbr_idx], k, 0,
 				recv_nbr_l_end, tp, tu);	  		
@@ -592,6 +592,11 @@ DistributedFastaData::wait()
 
 			++recv_nbr_idx;
 		}
+
+		if (nbr.rc_flag == 1)
+			cur_rseq += nbr_seqs_count;
+		else
+			cur_cseq += nbr_seqs_count;
 	}
 
 #ifndef NDEBUG
