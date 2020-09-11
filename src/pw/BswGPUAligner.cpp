@@ -38,21 +38,22 @@ BswGPUAligner::apply
 
 
 // @NOTE do not call this
-void
-BswGPUAligner::apply_batch
-(
-     seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsh,
-	 seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsv,
-	 uint64_t *lids,
-	 uint64_t col_offset,
-	 uint64_t row_offset,
-	 PSpMat<pastis::CommonKmers>::Tuples &mattuples,
-	 std::ofstream &afs,
-	 std::ofstream &lfs
-)
-{
+// void
+// BswGPUAligner::apply_batch
+// (
+//      seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsh,
+// 	 seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsv,
+// 	 uint64_t *lids,
+// 	 uint64_t col_offset,
+// 	 uint64_t row_offset,
+// 	 PSpMat<pastis::CommonKmers>::Tuples &mattuples,
+// 	 std::ofstream &lfs,
+// 	 double thr_cov,
+// 	 int thr_ani
+// )
+// {
 	
-}
+// }
 
 
 
@@ -66,8 +67,9 @@ BswGPUAligner::apply_batch_sc
 	uint64_t col_offset,
 	uint64_t row_offset,
 	PSpMat<pastis::CommonKmers>::ref_tuples *mattuples,
-	std::ofstream &afs,
-	std::ofstream &lfs
+	std::ofstream &lfs,
+    double thr_cov,
+	int thr_ani	
 )
 {
 	short sc_mat[] =
@@ -142,12 +144,6 @@ BswGPUAligner::apply_batch_sc
 
 	auto beg_aln = std::chrono::system_clock::now();
 
-	// #pragma omp parallel
-	// {
-	// int maxnthds = omp_get_max_threads();
-	// std::cout << "before ADEPT " << maxnthds << std::endl;
-	// }
-
 	gpu_bsw_driver::alignment_results res;
 	kernel_driver_aa(seqs_q, seqs_r, &res, sc_mat, -11, -1);
 
@@ -173,7 +169,7 @@ BswGPUAligner::apply_batch_sc
 			double cov_shorter = (double)(res.query_end[i]-res.query_begin[i]) /
 				min(len_seqh, len_seqv);
 			
-			if (max(cov_longer, cov_shorter) >= 0.70) // coverage constraint
+			if (max(cov_longer, cov_shorter) >= thr_cov) // coverage constraint
 			{
 				pastis::CommonKmers *cks = std::get<2>(mattuples[lids[i]]);
 				cks->nrm_score = (float)(res.top_scores[i]) /
@@ -197,12 +193,6 @@ BswGPUAligner::apply_batch_sc
 				//    << "\n";
 			}
 		}
-
-		// #pragma omp critical
-		// {
-		// 	afs << ss.str();
-		// 	afs.flush();
-		// }
 	}
 
 	return;

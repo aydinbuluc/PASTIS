@@ -26,16 +26,17 @@ public:
       seqan::Peptide *seq_h, seqan::Peptide *seq_v,
       pastis::CommonKmers &cks, std::stringstream& ss) = 0;
 
-  virtual
-  void
-  apply_batch (seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsh,
-			   seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsv,
-			   uint64_t *lids,
-			   uint64_t col_offset,
-			   uint64_t row_offset,
-			   PSpMat<pastis::CommonKmers>::Tuples &mattuples,
-			   std::ofstream &afs,
-			   std::ofstream &lfs) = 0;
+  // virtual
+  // void
+  // apply_batch (seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsh,
+  // 			   seqan::StringSet<seqan::Gaps<seqan::Peptide>> &seqsv,
+  // 			   uint64_t *lids,
+  // 			   uint64_t col_offset,
+  // 			   uint64_t row_offset,
+  // 			   PSpMat<pastis::CommonKmers>::Tuples &mattuples,
+  // 			   std::ofstream &lfs,
+  // 			   double thr_cov = 0.7,
+  // 			   int thr_ani = 30) = 0;
 
   virtual
   void
@@ -45,8 +46,11 @@ public:
   				  uint64_t col_offset,
   				  uint64_t row_offset,
   				  PSpMat<pastis::CommonKmers>::ref_tuples *mattuples,
-  				  std::ofstream &afs,
-				  std::ofstream &lfs) = 0;
+			   	  std::ofstream &lfs,
+				  double thr_cov = 0.7,
+				  int thr_ani = 30) = 0;
+  				  
+				  
 
 
   void add_time(std::string type, double duration);
