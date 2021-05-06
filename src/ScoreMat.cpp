@@ -77,6 +77,6 @@ pastis::Blosum62::Blosum62() : ScoreMatrix(25) {
 
 pastis::Blosum62::~Blosum62(){
   for (std::pair<char, std::vector<char>*> p : base_to_subtitutes){
-    free(p.second);
+	  delete p.second;
   }
 }

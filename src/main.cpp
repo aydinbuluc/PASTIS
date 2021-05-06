@@ -320,34 +320,19 @@ main
 		seqan::Blosum62 blosum62_simple(gap_open, gap_open);
 		PairwiseFunction* pf = nullptr;
 		uint64_t local_alignments = 0;
-		if (xdrop_align)
-		{
-			// pf = new SeedExtendXdrop (blosum62, blosum62_simple,
-			// 						  klength, xdrop, seed_count);
-			// dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
-			// 			  ckthr, mosthr * klength, tu);
-			// local_alignments = static_cast<SeedExtendXdrop*>(pf)->nalignments;
-		}
-		else if (full_align)
-		{
-			// pf = new FullAligner(blosum62, blosum62_simple);
-			// dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
-			// 			  ckthr, mosthr * klength, tu);
-			// local_alignments = static_cast<FullAligner*>(pf)->nalignments;
-		}
-		else if(banded_align)
-		{
-			// pf = new BandedAligner (blosum62, banded_half_width);
-			// dpr.run_batch(pf, align_file.c_str(), proc_log_stream, log_freq,
-			// 			  ckthr, mosthr * klength, tu);
-			// local_alignments = static_cast<BandedAligner*>(pf)->nalignments;
-		}
-		else if (gpubsw_align)
+		if (gpubsw_align)
 		{
 			pf = new BswGPUAligner();
 			dpr.run_batch(pf, align_file, proc_log_stream, log_freq,
 						  ckthr, mosthr * klength, tu);
 			local_alignments = static_cast<BswGPUAligner *>(pf)->nalignments;
+		}
+		else
+		{
+			tu.print_str("other alignment types are not available for "
+						 "GPU\n");
+			parops->teardown_parallelism();
+			return 0;
 		}
 
 		tp->times["end_main:dpr->align()"] = std::chrono::system_clock::now();

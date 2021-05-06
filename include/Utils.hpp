@@ -7,14 +7,25 @@
 #include <utility>
 #include "CombBLAS/CombBLAS.h"
 
+// template <class NT>
+// class PSpMat
+// {
+// public:
+//   typedef combblas::SpTuples <uint64_t, NT> Tuples;	
+//   typedef combblas::SpDCCols <uint64_t, NT> DCCols;
+//   typedef combblas::SpParMat <uint64_t, NT, DCCols> MPI_DCCols;
+//   typedef std::tuple<uint64_t, uint64_t, NT *> ref_tuples;
+// };
+
+
 template <class NT>
 class PSpMat
 {
 public:
-  typedef combblas::SpTuples <uint64_t, NT> Tuples;	
-  typedef combblas::SpDCCols <uint64_t, NT> DCCols;
-  typedef combblas::SpParMat <uint64_t, NT, DCCols> MPI_DCCols;
-  typedef std::tuple<uint64_t, uint64_t, NT *> ref_tuples;
+  typedef combblas::SpTuples <int64_t, NT> Tuples;	
+  typedef combblas::SpDCCols <int64_t, NT> DCCols;
+  typedef combblas::SpParMat <int64_t, NT, DCCols> MPI_DCCols;
+  typedef std::tuple<int64_t, int64_t, NT *> ref_tuples;
 };
 
 #endif //LBL_DAL_SPARSEMAT_HPP

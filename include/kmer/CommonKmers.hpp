@@ -4,6 +4,8 @@
 #define PASTIS_COMMONKMERS_HPP
 
 #include "../Types.hpp"
+#include "../Utils.hpp"
+
 namespace pastis{
   struct CommonKmers {
     /*! The number of common kmers between two sequences.

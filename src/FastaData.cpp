@@ -9,6 +9,8 @@ FastaData::~FastaData() {
   delete (id_starts);
   delete (seq_starts);
   delete (del_idxs);
+  if (buff != NULL)
+	  free(buff);
 }
 
 FastaData::FastaData(char *buff, ushort k, uint64_t l_start, uint64_t &l_end,
